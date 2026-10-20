@@ -22,18 +22,33 @@ const BYTES = { 'Prompt-ExtraBold.ttf': f1, 'Prompt-SemiBold.ttf': f2, 'Prompt-R
   'Anton-Regular.ttf': f6, 'DMSerifDisplay-Regular.ttf': f7, 'Padauk-Bold.ttf': f8, 'Battambang-Bold.ttf': f9 }
 const BUFFERS = Object.values(BYTES).map((b) => new Uint8Array(b))
 let ready = null
+const MAX = 15e6 // a picture's bytes, at most
 
 /** A picture as JPEG bytes no wider than `w`, or null. */
 async function pic(env, p, w) {
   if (!p) return null
   let bytes = null
-  if (p.b64) bytes = Uint8Array.from(atob(p.b64), (c) => c.charCodeAt(0))
-  else if (/^https:\/\//.test(p.url || '')) {
+  if (typeof p.b64 === 'string') {
+    if (p.b64.length > MAX * 4 / 3 + 4) return null
+    bytes = Uint8Array.from(atob(p.b64), (c) => c.charCodeAt(0))
+  } else if (/^https:\/\//.test(p.url || '')) {
     const r = await fetch(p.url, { cf: { cacheTtl: 3600 } })
-    if (!r.ok) return null
-    bytes = new Uint8Array(await r.arrayBuffer())
+    if (!r.ok || !r.body || Number(r.headers.get('content-length') || 0) > MAX) return null
+    // read no more than MAX, whatever the header said
+    const parts = [], reader = r.body.getReader()
+    let n = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      n += value.length
+      if (n > MAX) { await reader.cancel(); return null }
+      parts.push(value)
+    }
+    bytes = new Uint8Array(n)
+    let at = 0
+    for (const v of parts) { bytes.set(v, at); at += v.length }
   }
-  if (!bytes || bytes.length > 15e6) return null
+  if (!bytes || !bytes.length) return null
   if (!env.IMAGES) return { bytes }
   const out = await env.IMAGES.input(new Response(bytes).body).transform({ width: w, fit: 'scale-down' }).output({ format: 'image/jpeg', quality: 88 })
   return { bytes: new Uint8Array(await out.response().arrayBuffer()) }
