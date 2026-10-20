@@ -147,7 +147,10 @@ function picture(img, box, focus = [0.5, 0.5], id = 'p') {
 export function svg(F, spec) {
   const s = spec || {}
   const has = !!(s.image && s.image.bytes && dims(s.image.bytes))
-  const layout = LAYOUTS.includes(s.layout) ? (s.layout === 'plain' || has ? s.layout : 'plain') : has ? 'photo' : 'plain'
+  let layout = LAYOUTS.includes(s.layout) ? (s.layout === 'plain' || has ? s.layout : 'plain') : has ? 'photo' : 'plain'
+  // a tall picture behind the words keeps only its middle band: beside them it shows whole
+  const pd = has ? dims(s.image.bytes) : null
+  if (layout === 'photo' && pd && pd.h > pd.w * 1.05) layout = 'split'
   const accent = hex(s.accent, '#d7261e')
   const bg = hex(s.bg, layout === 'band' || layout === 'split' ? accent : '#16120e')
   const panelDark = lum(bg) < 0.5
@@ -200,7 +203,7 @@ export function svg(F, spec) {
   const onPanel = layout === 'photo' ? '#fff8ec' : ink
   if (s.kicker && layout !== 'band') {
     const ky = s.avatar || s.gold ? (s.avatar ? P + 66 : P + 28) : P + 24
-    if (!s.avatar && !s.gold) out.push(`<rect x="${P}" y="${ky - 15}" width="56" height="10" rx="5" fill="${accent}"/>`)
+    if (!s.avatar && !s.gold) out.push(`<rect x="${P}" y="${ky - 15}" width="56" height="10" rx="5" fill="${layout === 'split' ? ink : accent}"/>`)
     const kxx = !s.avatar && !s.gold ? P + 72 : kx
     out.push(`<text x="${kxx}" y="${ky}" font-family="Prompt, Padauk, Battambang" font-weight="600" font-size="28" fill="${layout === 'split' || layout === 'plain' ? ink : '#fff8ec'}">${esc(clip(F, s.kicker, 'Prompt-SemiBold.ttf', 28, (layout === 'split' ? 600 : W - 80) - kxx))}</text>`)
   }
@@ -210,7 +213,7 @@ export function svg(F, spec) {
   const sub = String(s.sub || '').trim()
   const subLines = sub ? (fit(F, 'Prompt-Regular.ttf', sub, { w: box.w, h: subFs * 1.4 * 2 }, { big: subFs, small: 22, max: 2, lh: 1.4 }) || { fs: 22, lines: [clip(F, sub, 'Prompt-Regular.ttf', 22, box.w)], lh: 1.4 }) : null
   // the gap under the title: Thai and Myanmar marks hang below the line
-  const gapOf = (fs) => (THAI.test(s.title || '') || tall ? Math.round(fs * 0.24) : 18)
+  const gapOf = (fs) => (THAI.test(s.title || '') || tall ? Math.round(fs * 0.24) : Math.max(18, Math.round(fs * 0.18)))
   const subH = subLines ? subLines.lines.length * subLines.fs * 1.4 + 18 : 0
   const maxLines = layout === 'band' ? 2 : 4
   const big = tall ? 100 : layout === 'band' ? 96 : String(s.title || '').length < 14 ? 150 : 128
