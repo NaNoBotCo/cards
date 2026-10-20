@@ -131,12 +131,13 @@ const b64 = (u8) => {
 }
 
 /** An <image> filling x,y,w,h, cropped around focus, clipped to the box. */
-function picture(img, box, focus = [0.5, 0.5], id = 'p') {
+function picture(img, box, focus = [0.5, 0.5], id = 'p', fit = 'cover') {
   const d = dims(img.bytes)
   if (!d) return ''
-  const r = Math.max(box.w / d.w, box.h / d.h), iw = d.w * r, ih = d.h * r
+  const r = (fit === 'contain' ? Math.min : Math.max)(box.w / d.w, box.h / d.h), iw = d.w * r, ih = d.h * r
   const fx = Math.min(1, Math.max(0, Number(focus[0]) || 0.5)), fy = Math.min(1, Math.max(0, Number(focus[1]) || 0.5))
-  const x = box.x + Math.min(0, Math.max(box.w - iw, box.w / 2 - fx * iw)), y = box.y + Math.min(0, Math.max(box.h - ih, box.h / 2 - fy * ih))
+  const x = fit === 'contain' ? box.x + (box.w - iw) / 2 : box.x + Math.min(0, Math.max(box.w - iw, box.w / 2 - fx * iw))
+  const y = fit === 'contain' ? box.y + (box.h - ih) / 2 : box.y + Math.min(0, Math.max(box.h - ih, box.h / 2 - fy * ih))
   return `<clipPath id="${id}c"><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}"/></clipPath>` +
     `<image clip-path="url(#${id}c)" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${iw.toFixed(1)}" height="${ih.toFixed(1)}" preserveAspectRatio="none" href="data:image/${d.type};base64,${b64(img.bytes)}"/>`
 }
@@ -177,7 +178,10 @@ export function svg(F, spec) {
     box = { x: P, y: by + 34, w: W - 2 * P, h: H - by - 34 - 96 }
   } else if (layout === 'split') {
     const sx = 640
-    out.push(`<rect width="${W}" height="${H}" fill="${bg}"/>`, picture(s.image, { x: sx, y: 0, w: W - sx, h: H }, s.focus), `<rect x="${sx - 5}" width="10" height="${H}" fill="${accent}"/>`)
+    // a tall picture sits whole on a dark ground; a wide one fills the half
+    const whole = pd && pd.h > pd.w * 1.05
+    out.push(`<rect width="${W}" height="${H}" fill="${bg}"/>`, whole ? `<rect x="${sx}" width="${W - sx}" height="${H}" fill="#0b0906"/>` : '',
+      picture(s.image, { x: sx, y: 0, w: W - sx, h: H }, s.focus, 'p', whole ? 'contain' : 'cover'), `<rect x="${sx - 5}" width="10" height="${H}" fill="${accent}"/>`)
     box = { x: P, y: top, w: sx - P - 44, h: H - 132 - top }
   } else {
     out.push(`<rect width="${W}" height="${H}" fill="${bg}"/>`,
@@ -213,7 +217,7 @@ export function svg(F, spec) {
   const sub = String(s.sub || '').trim()
   const subLines = sub ? (fit(F, 'Prompt-Regular.ttf', sub, { w: box.w, h: subFs * 1.4 * 2 }, { big: subFs, small: 22, max: 2, lh: 1.4 }) || { fs: 22, lines: [clip(F, sub, 'Prompt-Regular.ttf', 22, box.w)], lh: 1.4 }) : null
   // the gap under the title: Thai and Myanmar marks hang below the line
-  const gapOf = (fs) => (THAI.test(s.title || '') || tall ? Math.round(fs * 0.24) : Math.max(18, Math.round(fs * 0.18)))
+  const gapOf = (fs) => Math.max(18, Math.round(fs * (tall ? 0.42 : THAI.test(s.title || '') ? 0.24 : 0.18)))
   const subH = subLines ? subLines.lines.length * subLines.fs * 1.4 + 18 : 0
   const maxLines = layout === 'band' ? 2 : 4
   const big = tall ? 100 : layout === 'band' ? 96 : String(s.title || '').length < 14 ? 150 : 128
@@ -248,7 +252,11 @@ export function svg(F, spec) {
     out.push(`<rect x="${P}" y="${fy - 34}" width="44" height="44" rx="12" fill="${layout === 'band' || layout === 'split' ? footInk : accent}"${layout === 'band' || layout === 'split' ? ' fill-opacity=".9"' : ''}/>`,
       `<text x="${P + 60}" y="${fy}" font-family="Prompt" font-weight="600" font-size="28" fill="${footInk}">${esc(clip(F, u, 'Prompt-SemiBold.ttf', 28, (layout === 'split' ? 640 : W) - P - 60 - 40))}</text>`)
   }
-  if (s.credit && has && layout !== 'plain') out.push(`<text x="${W - 28}" y="${H - 22}" text-anchor="end" font-family="Prompt" font-size="16" fill="#fff" fill-opacity=".72">${esc(String(s.credit).slice(0, 90))}</text>`)
+  if (s.credit && has && layout !== 'plain') {
+    const c = String(s.credit).slice(0, 90), cw = width(F, 'Prompt-Regular.ttf', c, 16)
+    out.push(`<rect x="${W - 36 - cw}" y="${H - 44}" width="${cw + 20}" height="28" rx="14" fill="#000" fill-opacity=".55"/>`,
+      `<text x="${W - 26}" y="${H - 24}" text-anchor="end" font-family="Prompt" font-size="16" fill="#fff" fill-opacity=".9">${esc(c)}</text>`)
+  }
   if (s.gold) out.push(`<linearGradient id="gf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9c6a1c"/><stop offset=".3" stop-color="#f8dd8e"/><stop offset=".5" stop-color="#d9a441"/><stop offset=".8" stop-color="#f3c552"/><stop offset="1" stop-color="#9c6a1c"/></linearGradient>`,
     `<rect x="18" y="18" width="${W - 36}" height="${H - 36}" fill="none" stroke="url(#gf)" stroke-width="6"/><rect x="30" y="30" width="${W - 60}" height="${H - 60}" fill="none" stroke="url(#gf)" stroke-width="1.5"/>`)
 
