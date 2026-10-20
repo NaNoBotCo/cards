@@ -1,0 +1,14 @@
+# cards — the share-card library (src/draw.mjs) as a Worker, reached only through service bindings.
+name = "cards"
+main = "src/worker.mjs"
+compatibility_date = "2026-07-01"
+workers_dev = false
+preview_urls = false
+
+rules = [{ type = "Data", globs = ["**/*.ttf"], fallthrough = false }]
+
+[images]
+binding = "IMAGES"
+
+[observability]
+enabled = true
