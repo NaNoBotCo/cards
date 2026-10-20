@@ -92,15 +92,36 @@ function width(F, face, text, fs) {
 export function fit(F, face, text, box, { big = 128, small = 40, max = 4, lh = 1.06 } = {}) {
   const ps = pieces(text)
   if (!ps.length) return { fs: big, lines: [], lh }
-  for (let fs = big; fs >= small; fs -= 4) {
-    if (ps.some((p) => width(F, face, p.t, fs) > box.w)) continue
+  const wrap = (list, fs, w) => {
     const lines = []
     let cur = ''
-    for (const p of ps) {
+    for (const p of list) {
       const t = cur ? cur + (p.sp ? ' ' : '') + p.t : p.t
-      if (cur && width(F, face, t, fs) > box.w) { lines.push(cur); cur = p.t } else cur = t
+      if (cur && width(F, face, t, fs) > w) { lines.push(cur); cur = p.t } else cur = t
     }
     if (cur) lines.push(cur)
+    return lines
+  }
+  // the same number of lines, as even as they go: narrow the measure while the count holds
+  const balanced = (list, fs) => {
+    let lines = wrap(list, fs, box.w)
+    if (lines.length < 2) return lines
+    for (let w = box.w - 8; w > box.w * 0.4; w -= 8) {
+      const l = wrap(list, fs, w)
+      if (l.length !== lines.length || list.some((p) => width(F, face, p.t, fs) > w)) break
+      lines = l
+    }
+    return lines
+  }
+  // a separator ( · | — ) is the first place to break: each side wrapped on its own
+  const cut = ps.findIndex((p, i) => i > 0 && /\u00a0[·|—–:]$/.test(ps[i - 1].t))
+  for (let fs = big; fs >= small; fs -= 4) {
+    if (ps.some((p) => width(F, face, p.t, fs) > box.w)) continue
+    let lines = balanced(ps, fs)
+    if (lines.length > 1 && cut > 0) {
+      const at = [...balanced(ps.slice(0, cut), fs), ...balanced(ps.slice(cut).map((p, i) => (i ? p : { ...p, sp: false })), fs)]
+      if (at.length <= lines.length + 1 && at.length <= max) lines = at
+    }
     if (lines.length <= max && lines.length * fs * lh <= box.h) return { fs, lines, lh }
   }
   return null
