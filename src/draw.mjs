@@ -209,13 +209,16 @@ export function svg(F, spec) {
   const subFs = 32
   const sub = String(s.sub || '').trim()
   const subLines = sub ? (fit(F, 'Prompt-Regular.ttf', sub, { w: box.w, h: subFs * 1.4 * 2 }, { big: subFs, small: 22, max: 2, lh: 1.4 }) || { fs: 22, lines: [clip(F, sub, 'Prompt-Regular.ttf', 22, box.w)], lh: 1.4 }) : null
-  const subH = subLines ? subLines.lines.length * subLines.fs * 1.4 + 16 : 0
+  // the gap under the title: Thai and Myanmar marks hang below the line
+  const gapOf = (fs) => (THAI.test(s.title || '') || tall ? Math.round(fs * 0.24) : 18)
+  const subH = subLines ? subLines.lines.length * subLines.fs * 1.4 + 18 : 0
   const maxLines = layout === 'band' ? 2 : 4
   const big = tall ? 100 : layout === 'band' ? 96 : String(s.title || '').length < 14 ? 150 : 128
-  const t = fit(F, face, s.title || '', { w: box.w, h: box.h - subH }, { big, small: 36, max: maxLines, lh }) ||
+  const fitT = (b, o) => { for (let fs = o.big; fs >= o.small; fs -= 4) { const r = fit(F, face, s.title || '', { w: b.w, h: b.h - (subH ? gapOf(fs) - 18 : 0) }, { ...o, big: fs, small: fs }); if (r) return r } return null }
+  const t = fitT({ w: box.w, h: box.h - subH }, { big, small: 36, max: maxLines, lh }) ||
     fit(F, face, s.title || '', { w: box.w, h: box.h }, { big: 60, small: 24, max: maxLines + 2, lh }) || { fs: 24, lines: [clip(F, s.title, face, 24, box.w)], lh }
   const asc = (f) => F[f].ascender / F[f].unitsPerEm
-  const blockH = t.lines.length * t.fs * t.lh + subH
+  const blockH = t.lines.length * t.fs * t.lh + subH + (subH ? gapOf(t.fs) - 18 : 0)
   let y = layout === 'band' ? box.y : box.y + box.h - blockH
   const shadow = layout === 'photo' ? ' filter="url(#ts)"' : ''
   if (shadow) out.push(`<filter id="ts" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="12"/><feComponentTransfer><feFuncA type="linear" slope=".5"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>`)
@@ -227,7 +230,7 @@ export function svg(F, spec) {
   }
   out.push('</g>')
   if (subLines) {
-    y += 16
+    y += gapOf(t.fs)
     for (const l of subLines.lines) {
       out.push(`<text x="${box.x}" y="${(y + subLines.fs).toFixed(1)}" font-family="Prompt, Padauk, Battambang" font-size="${subLines.fs}" fill="${onPanel}" fill-opacity=".9">${esc(l)}</text>`)
       y += subLines.fs * 1.4
