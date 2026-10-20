@@ -1,17 +1,15 @@
 {
   "name": "cards",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Share cards drawn in a Cloudflare Worker",
+  "main": "src/node.mjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "sheet": "node tools/sheet.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "module",
   "dependencies": {
     "@resvg/resvg-wasm": "^2.6.2",
     "opentype.js": "^2.0.0"
-  }
+  },
+  "private": "true"
 }
